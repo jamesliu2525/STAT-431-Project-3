@@ -1,0 +1,156 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+$$\text{STAT 431 Project 3}$$
+```{r}
+library(car)
+library(broom)
+library(dplyr)
+library(tidyr)
+library(mosaic)
+
+diabetes_data <- read.csv("Pima.tr.csv")
+ 
+View(diabetes_data)
+attach(diabetes_data)
+ifelse(diabetes_data$type=="Yes",1,0)
+diabetes_data$type=ifelse(diabetes_data$type=="Yes",1,0)
+
+# linear model 
+a=lm(formula = type~npreg+glu+bp+skin+bmi+ped+age,data = diabetes_data)
+
+summary(a)
+
+# log linear model, poisson
+
+b=glm(formula = type~npreg+glu+bp+skin+bmi+ped+age,family=poisson(link="log"),data = diabetes_data)
+
+summary(b)
+
+# logit regression model
+c=glm(formula = type~npreg+glu+bp+skin+bmi+ped+age,family=binomial(link="logit"),data = diabetes_data)
+summary(c)
+
+# probit model
+d=glm(formula = type~npreg+glu+bp+skin+bmi+ped+age,family=binomial(link="probit"),data = diabetes_data)
+summary(d)
+
+#correlations
+cor(diabetes_data$type, diabetes_data$npreg)
+cor(diabetes_data$type, diabetes_data$bp)
+cor(diabetes_data$type, diabetes_data$skin)
+cor(diabetes_data$type, diabetes_data$age)
+cor(diabetes_data$type, diabetes_data$bmi)
+cor(diabetes_data$type, diabetes_data$glu)
+cor(diabetes_data$type, diabetes_data$ped)
+
+diabetes_data <- read.csv("Pima.tr.csv")
+
+# boxplot for type and npreg
+ggplot(data=diabetes_data, aes(x = npreg, y = type)) + geom_boxplot(col='red', fill='blue') + ylab("Diabetic") + coord_flip() + ggtitle("Boxplots for Diabetic and number of pregnacies")
+
+# To check variance between type and npreg
+summary(aov(npreg~type,data=diabetes_data))
+
+ggplot(data=diabetes_data, aes(x = npreg, y = type)) + geom_boxplot(col='red', fill='blue') + ylab("Diabetic") + coord_flip() + ggtitle("Boxplots for Diabetic and number of pregnacies")
+ggplot(data=diabetes_data, aes(x = glu, y = type)) + geom_boxplot(col='red', fill='blue') + ylab("Diabetic") + coord_flip() + ggtitle("Boxplots for Diabetic and glucose levels")
+ggplot(data=diabetes_data, aes(x = bp, y = type)) + geom_boxplot(col='red', fill='blue') + ylab("Diabetic") + coord_flip() + ggtitle("Boxplots for Diabetic and blood pressure")
+ggplot(data=diabetes_data, aes(x = skin, y = type)) + geom_boxplot(col='red', fill='blue') + ylab("Diabetic") + coord_flip() + ggtitle("Boxplots for Diabetic and skin")
+ggplot(data=diabetes_data, aes(x = bmi, y = type)) + geom_boxplot(col='red', fill='blue') + ylab("Diabetic") + coord_flip() + ggtitle("Boxplots for Diabetic and BMI")
+ggplot(data=diabetes_data, aes(x = ped, y = type)) + geom_boxplot(col='red', fill='blue') + ylab("Diabetic") + coord_flip() + ggtitle("Boxplots for Diabetic and Ped")
+ggplot(data=diabetes_data, aes(x = age, y = type)) + geom_boxplot(col='red', fill='blue') + ylab("Diabetic") + coord_flip() + ggtitle("Boxplots for Diabetic and age")
+
+
+#full model
+full_model <- glm(type~npreg+glu+bp+skin+bmi+ped+age, family=binomial, data = diabetes_data)
+summary(full_model) 
+
+#empty model
+empty_model <- glm(type~1, family=binomial, data = diabetes_data)
+summary(empty_model)
+
+#backwards, forwards and bothways AIC
+backwards_model_aic <- step(full_model, trace = 0)
+summary(backwards_model_aic)
+
+forwards_model_aic = step(empty_model,
+scope=list(lower=formula(empty_model),upper=formula(full_model)), direction="forward")
+summary(forwards_model_aic)
+
+bothways_model_aic =step(empty_model, list(lower=formula(empty_model),upper=formula(full_model)), direction="both",trace=0)
+summary(bothways_model_aic)
+
+n<-length(diabetes_data$type)
+
+#backwards, forwards and bothways BIC
+backwards_model_bic <- step(full_model, trace = 0, k = log(n))
+summary(backwards_model_bic)
+
+forwards_model_bic = step(empty_model,
+scope=list(lower=formula(empty_model),upper=formula(full_model)), direction="forward", k = log(n))
+summary(forwards_model_bic)
+
+bothways_model_bic =step(empty_model, list(lower=formula(empty_model),upper=formula(full_model)), direction="both",trace=0, k = log(n))
+summary(bothways_model_bic)
+
+#models based on AIC and BIC
+reduced_model_aic <- glm(type~npreg+glu+bmi+ped+age, family=binomial, data = diabetes_data)
+summary(reduced_model_aic) 
+
+reduced_model_bic <- glm(type~glu+bmi+ped+age, family=binomial, data = diabetes_data)
+summary(reduced_model_bic)
+
+#checking to see which model is the best
+anova(reduced_model_aic,reduced_model_bic,test="Chisq")
+anova(full_model,reduced_model_bic,test="Chisq") 
+
+#checking linear assumption
+probabilities=predict(reduced_model_bic,type="response")
+mydata <- diabetes_data %>%
+  dplyr::select_if(is.numeric) 
+predictors <- colnames(mydata)
+mydata <- mydata %>%
+  mutate(logit = log(probabilities/(1-probabilities))) %>%
+  gather(key = "predictors", value = "predictor.value", -logit)
+ggplot(mydata, aes(logit, predictor.value))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_smooth(method = "loess") + 
+  theme_bw() + 
+  facet_wrap(~predictors, scales = "free_y")
+
+probabilities2=predict(full_model,type="response")
+mydata2 <- diabetes_data %>%
+  dplyr::select_if(is.numeric) 
+predictors2 <- colnames(mydata2)
+mydata2 <- mydata2 %>%
+  mutate(logit = log(probabilities2/(1-probabilities2))) %>%
+  gather(key = "predictors2", value = "predictor.value2", -logit)
+ggplot(mydata2, aes(logit, predictor.value2))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_smooth(method = "loess") + 
+  theme_bw() + 
+  facet_wrap(~predictors2, scales = "free_y")
+
+#checking for influential values
+model.data <- augment(reduced_model_bic) %>% 
+  mutate(index = 1:n()) 
+model.data %>% top_n(3, .cooksd)
+ggplot(model.data, aes(index, .std.resid)) + 
+  geom_point(aes(color = type), alpha = .5) +
+  theme_bw()
+model.data %>% 
+  filter(abs(.std.resid) > 3)
+
+#checking VIF values
+vif(reduced_model_bic)
+
+#mean values
+mean(diabetes_data$npreg)
+mean(diabetes_data$glu)
+mean(diabetes_data$bmi)
+mean(diabetes_data$ped)
+mean(diabetes_data$age)
+
+```
